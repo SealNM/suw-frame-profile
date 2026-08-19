@@ -1,0 +1,6 @@
+{
+  "name": "ระบบใส่กรอบรูปโปรไฟล์ผ้าป่าสามัคคี",
+  "description": "เว็บแอปพลิเคชันสำหรับตกแต่งรูปภาพโปรไฟล์ใส่กรอบงานผ้าป่าสามัคคีและกรอบกิจกรรม พร้อมปรับแต่งภาพและส่งออกไฟล์ความละเอียดสูงทันที",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
