@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Upload,
   Camera,
@@ -8,23 +9,20 @@ import {
   Crop,
   Sparkles,
 } from 'lucide-react';
-import { BadgeConfig, PhotoTransform } from './types';
+import { PhotoTransform } from './types';
 import { DEFAULT_FRAMES } from './data/frames';
 import { Header } from './components/Header';
 import { FrameCanvas } from './components/FrameCanvas';
 import { CameraCaptureModal } from './components/CameraCaptureModal';
-import { EventInfoModal } from './components/EventInfoModal';
-import {
-  ThaiKanokDivider,
-  ThaiEducationBookIcon,
-  ThaiTempleIcon,
-  ThaiLotusBouquetIcon,
-} from './components/ThaiIcons';
+import { InvitationSection } from './components/InvitationSection';
+import { ThaiKanokDivider } from './components/ThaiIcons';
 import { downloadExportedImage } from './utils/exportImage';
+import { triggerGoldConfetti } from './utils/confetti';
 
 export default function App() {
   // 1. User Photo State (null initially to show the sleek mockup avatar silhouette)
   const [userImage, setUserImage] = useState<HTMLImageElement | null>(null);
+  const [frameImage, setFrameImage] = useState<HTMLImageElement | null>(null);
   const [photoTransform, setPhotoTransform] = useState<PhotoTransform>({
     x: 0,
     y: 0,
@@ -37,26 +35,50 @@ export default function App() {
     saturation: 100,
   });
 
+  // Pre-load the official user uploaded frame (/frames/suw-frame.png)
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      setFrameImage(img);
+    };
+    img.src = '/frames/suw-frame.png';
+  }, []);
+
   // 2. Official Single Frame
   const officialFrame = DEFAULT_FRAMES[0];
 
   // 3. UI states
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [isEventInfoOpen, setIsEventInfoOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
-  // File input ref
+  // Refs
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const frameSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Smooth scroll to frame preview on mobile/desktop
+  const scrollToFrameSection = () => {
+    setTimeout(() => {
+      if (frameSectionRef.current) {
+        frameSectionRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+    }, 200);
+  };
 
   // Handle user photo file selection with automatic centering and scale
   const handlePhotoFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return;
+    if (!file.type.startsWith('image/') && !file.name.match(/\.(jpg|jpeg|png|webp|bmp|gif|heic|heif)$/i)) {
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (e) => {
       const src = e.target?.result as string;
+      if (!src) return;
       const img = new Image();
-      img.crossOrigin = 'anonymous';
       img.onload = () => {
         setUserImage(img);
         // Automatically reset to centered position & default scale
@@ -72,6 +94,8 @@ export default function App() {
           saturation: 100,
         });
         setDownloadSuccess(false);
+        // Smoothly scroll down to frame preview
+        scrollToFrameSection();
       };
       img.src = src;
     };
@@ -82,6 +106,8 @@ export default function App() {
     if (e.target.files && e.target.files[0]) {
       handlePhotoFile(e.target.files[0]);
     }
+    // Reset file input value so selecting the same file again triggers onChange
+    e.target.value = '';
   };
 
   // Handle camera captured image
@@ -99,9 +125,10 @@ export default function App() {
       saturation: 100,
     });
     setDownloadSuccess(false);
+    scrollToFrameSection();
   };
 
-  // 1-Click Instant High Resolution Download (2048x2048 Ultra HD)
+  // 1-Click Instant High Resolution Download (JPG format 1080x1080)
   const handleInstantDownload = async () => {
     try {
       setIsDownloading(true);
@@ -109,16 +136,17 @@ export default function App() {
         userImage,
         photoTransform,
         officialFrame,
-        null,
+        frameImage,
         undefined,
         {
-          size: 2048,
-          format: 'png',
-          quality: 1,
+          size: 1080,
+          format: 'jpeg',
+          quality: 0.92,
           filename: 'sukhothai-phapa-2569-profile',
         }
       );
       setDownloadSuccess(true);
+      triggerGoldConfetti();
       setTimeout(() => setDownloadSuccess(false), 4000);
     } catch (err) {
       console.error('Download error:', err);
@@ -126,6 +154,7 @@ export default function App() {
       setIsDownloading(false);
     }
   };
+
 
   // Drag and drop image
   const handleDragOver = (e: React.DragEvent) => {
@@ -143,7 +172,7 @@ export default function App() {
     <div
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className="min-h-screen flex flex-col bg-white text-slate-900 selection:bg-purple-600 selection:text-white font-['Prompt',sans-serif]"
+      className="min-h-screen flex flex-col bg-[#faf8fc] text-slate-900 selection:bg-purple-600 selection:text-white font-['Prompt',sans-serif]"
     >
       {/* Hidden File Input */}
       <input
@@ -154,16 +183,21 @@ export default function App() {
         className="hidden"
       />
 
-      {/* 1. Header with Royal Purple Background, Thai School Logo & Sukhothai Chedi */}
-      <Header onOpenEventInfo={() => setIsEventInfoOpen(true)} />
+      {/* 1. Header with Royal Purple Background, Thai School Logo & Sukhothai Arch Sparkles */}
+      <Header />
 
-      {/* 2. Main Two-Column Content Layout (Matching User Mockup) */}
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+      {/* 2. Main Two-Column Content Layout */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-3.5 sm:px-6 py-4 sm:py-8 flex flex-col gap-5 sm:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 lg:gap-12 items-start">
           {/* Left Column: Title, Thai Ornament & Upload Card */}
-          <div className="lg:col-span-5 flex flex-col gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45 }}
+            className="lg:col-span-5 flex flex-col gap-2 sm:gap-3 text-center lg:text-left items-center lg:items-start"
+          >
             {/* Main Heading */}
-            <h2 className="text-2xl sm:text-3xl font-bold font-['Kanit'] text-[#2b0c5e] tracking-tight leading-tight">
+            <h2 className="text-xl sm:text-3xl font-bold font-['Kanit'] text-[#2b0c5e] tracking-tight leading-tight">
               ผ้าป่าสามัคคีเพื่อการศึกษา
             </h2>
 
@@ -173,169 +207,191 @@ export default function App() {
             </p>
 
             {/* Thai Golden Kanok Center Divider */}
-            <div className="py-1">
-              <ThaiKanokDivider className="w-40 h-6 text-amber-500" />
+            <div className="py-0.5 sm:py-1 flex items-center justify-center lg:justify-start gap-2">
+              <ThaiKanokDivider className="w-28 sm:w-36 h-5 sm:h-6 text-amber-500" />
             </div>
 
-            {/* Upload Box Card */}
-            <div
+            {/* Upload Box Card - Streamlined on Mobile */}
+            <motion.div
+              whileHover={{ scale: 1.012 }}
+              whileTap={{ scale: 0.985 }}
               onClick={() => photoFileInputRef.current?.click()}
-              className="mt-2 w-full border-2 border-dashed border-purple-300 hover:border-purple-500 rounded-3xl p-6 sm:p-7 bg-[#fcfbfe] hover:bg-[#faf7fd] text-center flex flex-col items-center justify-center cursor-pointer transition-colors group"
+              className="mt-1 sm:mt-2 w-full border-2 border-dashed border-purple-300 hover:border-purple-500 rounded-2xl sm:rounded-3xl p-4 sm:p-7 bg-white hover:bg-[#fcfbfe] text-center flex flex-col items-center justify-center cursor-pointer transition-all shadow-xs hover:shadow-md group relative overflow-hidden"
             >
               {/* Purple Circle Cloud Icon */}
-              <div className="w-14 h-14 rounded-full bg-[#4c1d95] group-hover:bg-[#3b1278] text-white flex items-center justify-center mb-3 transition-colors">
-                <Upload className="w-7 h-7" />
-              </div>
+              <motion.div
+                whileHover={{ rotate: 10, scale: 1.1 }}
+                className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-[#4c1d95] group-hover:bg-[#3b1278] text-white flex items-center justify-center mb-2 sm:mb-3 transition-colors shadow-md shadow-purple-900/20"
+              >
+                <Upload className="w-5 h-5 sm:w-7 sm:h-7" />
+              </motion.div>
 
               {/* Title */}
-              <h3 className="text-base sm:text-lg font-bold font-['Kanit'] text-[#2b0c5e] mb-1">
+              <h3 className="text-sm sm:text-lg font-bold font-['Kanit'] text-[#2b0c5e] mb-0.5 sm:mb-1">
                 อัปโหลดรูป ใส่กรอบโปรไฟล์
               </h3>
 
               {/* Format Hint */}
-              <p className="text-xs text-slate-400 mb-4">
-                ไฟล์ JPG, PNG (ขนาดไม่เกิน 10MB)
+              <p className="text-[11px] sm:text-xs text-slate-400 mb-3 sm:mb-4">
+                ไฟล์ JPG, PNG (ปรับขนาดให้พอดีอัตโนมัติ)
               </p>
 
-              {/* Select Photo Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  photoFileInputRef.current?.click();
-                }}
-                className="w-full py-3 px-6 rounded-2xl bg-[#4c1d95] hover:bg-[#3b1278] text-white font-bold font-['Kanit'] text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer transition-colors"
-              >
-                <ImageIcon className="w-4 h-4 text-white" />
-                <span>เลือกไฟล์รูปภาพ</span>
-              </button>
-            </div>
+              {/* Action Buttons: Choose File & Camera */}
+              <div className="w-full flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    photoFileInputRef.current?.click();
+                  }}
+                  className="flex-1 py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-[#4c1d95] hover:bg-[#3b1278] text-white font-bold font-['Kanit'] text-xs sm:text-base flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
+                >
+                  <ImageIcon className="w-4 h-4 text-white" />
+                  <span>เลือกรูปภาพ</span>
+                </button>
 
-            {/* Auto-Fit Information Box */}
-            <div className="w-full bg-[#f3edf8] border border-purple-100 rounded-2xl p-4 flex items-center gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-purple-200/70 text-[#4c1d95] flex items-center justify-center shrink-0">
-                <Crop className="w-5 h-5" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsCameraOpen(true);
+                  }}
+                  className="py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-purple-50 hover:bg-purple-100 text-[#4c1d95] font-semibold font-['Kanit'] text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-colors border border-purple-200"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>ถ่ายภาพ</span>
+                </button>
               </div>
-              <div>
-                <div className="text-sm font-bold font-['Kanit'] text-[#2b0c5e]">
-                  ปรับอัตโนมัติให้พอดีกับกรอบ
+            </motion.div>
+
+            {/* Auto-Fit Information Box - Shown on Tablet/Desktop, Hidden on small screens to reduce clutter */}
+            <div className="hidden sm:flex w-full bg-[#f3edf8] border border-purple-100 rounded-2xl p-3.5 items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-purple-200/70 text-[#4c1d95] flex items-center justify-center shrink-0">
+                <Crop className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs sm:text-sm font-bold font-['Kanit'] text-[#2b0c5e]">
+                  จัดตำแหน่งและขนาดอัตโนมัติ
                 </div>
-                <p className="text-xs text-slate-500">
-                  คุณสามารถขยับหรือซูมรูปเล็กน้อยได้ในกรอบ
+                <p className="text-[11px] sm:text-xs text-slate-500">
+                  ใช้นิ้วแตะลาก ขยับ หรือหมุนรูปภาพในกรอบได้ตามต้องการ
                 </p>
               </div>
             </div>
-
-            {/* Quick Camera Option Button */}
-            <button
-              onClick={() => setIsCameraOpen(true)}
-              className="inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#4c1d95] text-xs font-semibold font-['Kanit'] transition-colors cursor-pointer w-full mt-1"
-            >
-              <Camera className="w-4 h-4" />
-              <span>หรือเปิดกล้องถ่ายภาพของคุณ</span>
-            </button>
-          </div>
+          </motion.div>
 
           {/* Right Column: Profile Frame Preview & Instant High-Res Download Button */}
-          <div className="lg:col-span-7 flex flex-col items-center">
+          <motion.div
+            ref={frameSectionRef}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+            className="lg:col-span-7 flex flex-col items-center scroll-mt-4 w-full"
+          >
             {/* Header: ตัวอย่างกรอบโปรไฟล์ */}
-            <h3 className="text-sm sm:text-base font-bold font-['Kanit'] text-[#2b0c5e] mb-2.5 text-center">
-              ตัวอย่างกรอบโปรไฟล์
-            </h3>
+            <div className="w-full flex items-center justify-between mb-2 px-1">
+              <h3 className="text-sm sm:text-base font-bold font-['Kanit'] text-[#2b0c5e] flex items-center gap-1.5">
+                <span>ตัวอย่างกรอบโปรไฟล์</span>
+                {userImage && (
+                  <span className="text-[10px] sm:text-[11px] font-normal px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    พร้อมส่งออก
+                  </span>
+                )}
+              </h3>
 
-            {/* Frame Container Card */}
-            <div className="w-full bg-[#f4f2f6] border border-slate-200/80 rounded-3xl p-4 sm:p-6 flex flex-col items-center justify-center">
+              {userImage && (
+                <button
+                  onClick={() => photoFileInputRef.current?.click()}
+                  className="text-xs text-[#4c1d95] hover:text-[#3b1278] font-medium underline cursor-pointer"
+                >
+                  เปลี่ยนรูปใหม่
+                </button>
+              )}
+            </div>
+
+            {/* Frame Container Card - Clean, Premium, Minimal Border */}
+            <div className="w-full bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl p-2.5 sm:p-6 flex flex-col items-center justify-center shadow-xs relative">
               <FrameCanvas
                 userImage={userImage}
                 transform={photoTransform}
                 onTransformChange={setPhotoTransform}
                 selectedFrame={officialFrame}
+                customFrameImg={frameImage}
                 onUploadClick={() => photoFileInputRef.current?.click()}
                 onCameraClick={() => setIsCameraOpen(true)}
               />
             </div>
 
             {/* High-Resolution Download Button */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.015 }}
+              whileTap={{ scale: 0.985 }}
               onClick={handleInstantDownload}
               disabled={isDownloading}
-              className={`w-full mt-3.5 py-3.5 sm:py-4 px-6 rounded-2xl font-bold font-['Kanit'] text-base sm:text-lg flex items-center justify-center gap-2.5 transition-colors cursor-pointer ${
+              className={`w-full mt-3 py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-bold font-['Kanit'] text-sm sm:text-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
                 downloadSuccess
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-[#4c1d95] hover:bg-[#3b1278] text-white disabled:bg-purple-300'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/20'
+                  : 'bg-[#4c1d95] hover:bg-[#3b1278] text-white disabled:bg-purple-300 shadow-purple-900/25'
               }`}
             >
-              {downloadSuccess ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-200" />
-                  <span>ดาวน์โหลดรูปภาพสำเร็จแล้ว!</span>
-                </>
-              ) : isDownloading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>กำลังสร้างรูปภาพความละเอียดสูง...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-5 h-5 text-white" />
-                  <span>ดาวน์โหลดภาพความละเอียดสูง</span>
-                </>
-              )}
-            </button>
+              <AnimatePresence mode="wait">
+                {downloadSuccess ? (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+                    <span>ดาวน์โหลดรูปภาพสำเร็จแล้ว!</span>
+                  </motion.div>
+                ) : isDownloading ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>กำลังสร้างรูปภาพความละเอียดสูง...</span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="idle"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-5 h-5 text-white" />
+                    <span>ดาวน์โหลดรูปภาพ (JPG)</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
 
             {/* Subtext below download button */}
-            <p className="text-xs text-slate-500 font-medium text-center mt-2">
-              PNG ความละเอียดสูง พร้อมใช้งานทันที
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium text-center mt-1.5 sm:mt-2">
+              ไฟล์ JPG ความคมชัดสูง 1080×1080 พร้อมตั้งเป็นรูปโปรไฟล์ทันที
             </p>
-          </div>
+          </motion.div>
         </div>
 
-        {/* 3. Bottom 3-Column Thai Ornaments & Education Purpose Cards */}
-        <section className="w-full border border-amber-400 rounded-2xl p-5 sm:p-6 bg-white grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-purple-100 mt-2">
-          {/* Card 1: ร่วมสร้างโอกาสทางการศึกษา */}
-          <div className="flex items-start gap-4 pt-2 md:pt-0">
-            <ThaiEducationBookIcon className="w-14 h-14 shrink-0 text-amber-600" />
-            <div className="flex flex-col">
-              <h4 className="text-sm font-bold font-['Kanit'] text-[#2b0c5e] mb-1">
-                ร่วมสร้างโอกาสทางการศึกษา
-              </h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                รายได้จากผ้าป่าสามัคคี นำไปพัฒนาการเรียนรู้ ปรับปรุงสื่อการศึกษา และส่งเสริมกิจกรรมของนักเรียน เพื่ออนาคตที่ดีของเยาวชน
-              </p>
-            </div>
-          </div>
-
-          {/* Card 2: ร่วมทำบุญ ร่วมสร้างอนาคต */}
-          <div className="flex items-start gap-4 pt-4 md:pt-0 md:pl-6">
-            <ThaiTempleIcon className="w-14 h-14 shrink-0 text-[#4c1d95]" />
-            <div className="flex flex-col">
-              <h4 className="text-sm font-bold font-['Kanit'] text-[#2b0c5e] mb-1">
-                ร่วมทำบุญ ร่วมสร้างอนาคต
-              </h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                ทุกการร่วมสมทบทุน คือพลังแห่งความดี เพื่อเด็ก ๆ และโรงเรียนของเรา
-              </p>
-            </div>
-          </div>
-
-          {/* Card 3: Thai Lotus Bouquet Ornament */}
-          <div className="flex items-center justify-center pt-4 md:pt-0 md:pl-6">
-            <ThaiLotusBouquetIcon className="w-28 h-16 text-[#6b21a8]" />
-          </div>
-        </section>
+        {/* 3. Bottom Thai Invitation & Educational Purpose Section */}
+        <InvitationSection />
       </main>
 
-      {/* Modals for Camera and Event Info */}
+      {/* Modals for Camera */}
       <CameraCaptureModal
         isOpen={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
         onCapture={handleCameraCapture}
       />
-
-      <EventInfoModal
-        isOpen={isEventInfoOpen}
-        onClose={() => setIsEventInfoOpen(false)}
-      />
     </div>
   );
 }
+
+
+

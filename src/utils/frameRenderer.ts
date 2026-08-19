@@ -15,13 +15,16 @@ export function drawFrame(
   const size = Math.min(width, height);
   const cx = width / 2;
   const cy = height / 2;
-  const r = size * 0.44; // Outer radius of profile frame
-  const innerR = size * 0.355; // Inner circle opening for user's photo
+  const r = size * 0.45;
+  const innerR = size * 0.442;
 
   ctx.save();
 
-  if (frame.renderType === 'image' && customFrameImg) {
+  // If frame image (e.g. suw-frame.png) is provided and loaded
+  if (customFrameImg && customFrameImg.complete && customFrameImg.naturalWidth > 0) {
+    // Draw the transparent PNG frame overlay directly on top of the user photo layer
     ctx.drawImage(customFrameImg, 0, 0, width, height);
+
     if (badge && badge.enabled && badge.name.trim()) {
       drawCustomBadge(ctx, width, height, badge);
     }
@@ -29,6 +32,7 @@ export function drawFrame(
     return;
   }
 
+  // Fallback vector canvas drawing of the official Sukhothai Pha Pa frame
   drawSukhothaiOfficialFrame(ctx, width, height, cx, cy, r, innerR);
 
   if (badge && badge.enabled && badge.name.trim()) {
@@ -37,6 +41,11 @@ export function drawFrame(
 
   ctx.restore();
 }
+
+
+
+
+
 
 /**
  * Draw Default Avatar Silhouette inside profile circle aperture when no user photo is loaded

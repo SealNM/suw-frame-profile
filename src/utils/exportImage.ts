@@ -9,9 +9,10 @@ export async function generateCompositeCanvas(
   transform: PhotoTransform,
   frame: FrameOption,
   customFrameImg: HTMLImageElement | null,
-  badge: BadgeConfig,
-  targetSize: number = 2048
+  badge?: BadgeConfig,
+  targetSize: number = 1080
 ): Promise<HTMLCanvasElement> {
+
   const canvas = document.createElement('canvas');
   canvas.width = targetSize;
   canvas.height = targetSize;
@@ -21,26 +22,36 @@ export async function generateCompositeCanvas(
     throw new Error('Could not get canvas context');
   }
 
+  // Ensure frame image is loaded if frame has imageUrl or renderType image
+  let activeFrameImg = customFrameImg;
+  if (!activeFrameImg && (frame.imageUrl || frame.renderType === 'image')) {
+    try {
+      activeFrameImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = frame.imageUrl || '/frames/suw-frame.png';
+      });
+    } catch {
+      activeFrameImg = null;
+    }
+  }
+
   // Smooth image rendering
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
   const cx = targetSize / 2;
   const cy = targetSize / 2;
-  const innerR = targetSize * 0.355; // circular cutout radius
 
-  // 1. Draw User Photo (if available)
+  // Solid white background (vital for clean JPG exports)
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, targetSize, targetSize);
+
+  // 1. Draw User Photo behind the frame (fills 1:1 square canvas)
   if (userImage) {
     ctx.save();
-
-    // Clip to circle so photo doesn't spill out
-    ctx.beginPath();
-    ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
-    ctx.clip();
-
-    // Background behind photo (clean neutral)
-    ctx.fillStyle = '#1e1b4b';
-    ctx.fill();
 
     // Apply color adjustments
     ctx.filter = `brightness(${transform.brightness}%) contrast(${transform.contrast}%) saturate(${transform.saturation}%)`;
@@ -53,44 +64,46 @@ export async function generateCompositeCanvas(
       transform.scale * (transform.flipV ? -1 : 1)
     );
 
-    // Calculate aspect ratio fit
+    // Calculate 1:1 full cover aspect ratio fit
     const imgAspect = userImage.width / userImage.height;
-    let drawW = innerR * 2.3;
-    let drawH = drawW / imgAspect;
+    let drawW = targetSize;
+    let drawH = targetSize;
 
-    if (imgAspect < 1) {
-      drawH = innerR * 2.3;
-      drawW = drawH * imgAspect;
+    if (imgAspect > 1) {
+      drawW = targetSize * imgAspect;
+      drawH = targetSize;
+    } else {
+      drawW = targetSize;
+      drawH = targetSize / imgAspect;
     }
 
     ctx.drawImage(userImage, -drawW / 2, -drawH / 2, drawW, drawH);
     ctx.restore();
-  } else {
-    // Empty state placeholder inside circle
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
-    ctx.fillStyle = '#130a24';
-    ctx.fill();
-    ctx.restore();
   }
 
   // 2. Draw Frame Overlay on top
-  drawFrame(ctx, targetSize, targetSize, frame, customFrameImg, badge);
+  drawFrame(ctx, targetSize, targetSize, frame, activeFrameImg, badge);
 
   return canvas;
+
 }
 
+
 /**
- * Downloads the exported image to user's device
+ * Downloads the exported image to user's device (JPG format, 1080x1080)
  */
 export async function downloadExportedImage(
   userImage: HTMLImageElement | null,
   transform: PhotoTransform,
   frame: FrameOption,
   customFrameImg: HTMLImageElement | null,
-  badge: BadgeConfig,
-  settings: ExportSettings
+  badge?: BadgeConfig,
+  settings: ExportSettings = {
+    size: 1080,
+    format: 'jpeg',
+    quality: 0.92,
+    filename: 'sukhothai-phapa-2569-profile',
+  }
 ): Promise<void> {
   const canvas = await generateCompositeCanvas(
     userImage,
@@ -98,11 +111,14 @@ export async function downloadExportedImage(
     frame,
     customFrameImg,
     badge,
-    settings.size
+    settings.size || 1080
   );
 
+
   return new Promise((resolve, reject) => {
-    const mimeType = settings.format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const isJpeg = settings.format === 'jpeg' || !settings.format;
+    const mimeType = isJpeg ? 'image/jpeg' : 'image/png';
+    const quality = settings.quality ?? 0.92;
     canvas.toBlob(
       (blob) => {
         if (!blob) {
@@ -112,8 +128,8 @@ export async function downloadExportedImage(
 
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        const ext = settings.format === 'jpeg' ? 'jpg' : 'png';
-        link.download = `${settings.filename || 'sukhothai-phapa-2569-profile'}-${settings.size}px.${ext}`;
+        const ext = isJpeg ? 'jpg' : 'png';
+        link.download = `${settings.filename || 'sukhothai-phapa-2569-profile'}.${ext}`;
         link.href = url;
         document.body.appendChild(link);
         link.click();
@@ -122,10 +138,11 @@ export async function downloadExportedImage(
         resolve();
       },
       mimeType,
-      settings.quality
+      quality
     );
   });
 }
+
 
 /**
  * Copies the composite image to the user's clipboard

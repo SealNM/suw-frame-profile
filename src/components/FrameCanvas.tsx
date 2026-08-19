@@ -63,19 +63,14 @@ export const FrameCanvas: React.FC<FrameCanvasProps> = ({
 
     const cx = displaySize / 2;
     const cy = displaySize / 2;
-    const innerR = displaySize * 0.355; // Inner circle opening for profile
+    const apertureR = displaySize * 0.442; // Precise inner opening radius of the official frame
 
-    // 1. Draw User Photo (or default silhouette if no photo is loaded)
+    // 1. Draw User Photo behind the frame (fills 1:1 square canvas)
     if (userImage) {
       ctx.save();
-      // Clip to circular profile aperture
-      ctx.beginPath();
-      ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
-      ctx.clip();
-
-      // Clean background
+      // Clean white background
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(cx - innerR, cy - innerR, innerR * 2, innerR * 2);
+      ctx.fillRect(0, 0, displaySize, displaySize);
 
       // Filters
       ctx.filter = `brightness(${transform.brightness}%) contrast(${transform.contrast}%) saturate(${transform.saturation}%)`;
@@ -88,25 +83,32 @@ export const FrameCanvas: React.FC<FrameCanvasProps> = ({
         transform.scale * (transform.flipV ? -1 : 1)
       );
 
-      // Aspect ratio auto-fit
+      // 1:1 cover sizing (fills entire square frame area)
       const imgAspect = userImage.width / userImage.height;
-      let drawW = innerR * 2.35;
-      let drawH = drawW / imgAspect;
-      if (imgAspect < 1) {
-        drawH = innerR * 2.35;
-        drawW = drawH * imgAspect;
+      let drawW = displaySize;
+      let drawH = displaySize;
+      if (imgAspect > 1) {
+        drawW = displaySize * imgAspect;
+        drawH = displaySize;
+      } else {
+        drawW = displaySize;
+        drawH = displaySize / imgAspect;
       }
 
       ctx.drawImage(userImage, -drawW / 2, -drawH / 2, drawW, drawH);
       ctx.restore();
     } else {
       // Default sleek silhouette placeholder as shown in mockup
-      drawDefaultSilhouette(ctx, cx, cy, innerR);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, displaySize, displaySize);
+      drawDefaultSilhouette(ctx, cx, cy, apertureR * 0.85);
     }
 
-    // 2. Draw Frame Overlay (Official Pha Pa Frame)
+    // 2. Draw Frame Overlay ON TOP of user photo
     drawFrame(ctx, displaySize, displaySize, selectedFrame, customFrameImg, badge);
   }, [userImage, transform, selectedFrame, customFrameImg, badge]);
+
+
 
   useEffect(() => {
     let animationFrameId: number;
@@ -149,9 +151,12 @@ export const FrameCanvas: React.FC<FrameCanvasProps> = ({
     });
   };
 
-  // Touch gestures for mobile
+  // Touch gestures for mobile (prevents page scrolling when dragging on mobile)
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!userImage) return;
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     if (e.touches.length === 1) {
       setIsDragging(true);
       setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
@@ -168,6 +173,9 @@ export const FrameCanvas: React.FC<FrameCanvasProps> = ({
 
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!userImage) return;
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     if (e.touches.length === 1 && isDragging) {
       const dx = e.touches[0].clientX - dragStart.x;
       const dy = e.touches[0].clientY - dragStart.y;
@@ -189,6 +197,7 @@ export const FrameCanvas: React.FC<FrameCanvasProps> = ({
       });
     }
   };
+
 
   const handleTouchEnd = () => {
     setIsDragging(false);
@@ -240,7 +249,7 @@ export const FrameCanvas: React.FC<FrameCanvasProps> = ({
       {/* Canvas Viewport */}
       <div
         ref={containerRef}
-        className="relative w-full aspect-square max-w-[430px] mx-auto select-none flex items-center justify-center"
+        className="relative w-full aspect-square max-w-[430px] mx-auto select-none flex items-center justify-center touch-none"
       >
         <canvas
           ref={canvasRef}
@@ -252,13 +261,14 @@ export const FrameCanvas: React.FC<FrameCanvasProps> = ({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className={`w-full h-full object-contain ${
+          className={`w-full h-full object-contain touch-none ${
             userImage ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
           }`}
           onClick={() => {
             if (!userImage) onUploadClick();
           }}
         />
+
 
         {/* Drag Helper Tip when user has photo */}
         {userImage && (

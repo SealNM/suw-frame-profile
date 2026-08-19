@@ -1,11 +1,6 @@
 @import "tailwindcss";
 
 @layer base {
-  * {
-    box-shadow: none !important;
-    text-shadow: none !important;
-  }
-  
   body {
     font-family: 'Prompt', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: #ffffff;
@@ -39,3 +34,5 @@ input[type="range"] {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+
